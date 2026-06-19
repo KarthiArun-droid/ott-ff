@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # 1. Edge API Gateway Service
+  api-gateway:
+    build:
+      context: ./api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - catalog-service
+      - auth-service
+    environment:
+      - ENVIRONMENT=production
+      - CATALOG_SERVICE_URL=http://catalog-service:8082
+      - AUTH_SERVICE_URL=http://auth-service:8081
+
+  # 2. Movie Catalog Metadata Management Microservice
+  catalog-service:
+    build:
+      context: ./services/catalog-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      - postgres-db
+      - cache-layer
+    environment:
+      - DB_URI=postgres://user:password@postgres-db:5432/ott_catalog?sslmode=disable
+      - REDIS_URI=cache-layer:6379
+
+  # 3. Authentication and Session Microservice
+  auth-service:
+    build:
+      context: ./services/auth-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres-db
+    environment:
+      - DB_URI=postgres://user:password@postgres-db:5432/ott_catalog?sslmode=disable
+
+  # 4. High Performance Cache Tier
+  cache-layer:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: always
+
+  # 5. Relational Storage Layer
+  postgres-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ott_catalog
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  postgres_data:
